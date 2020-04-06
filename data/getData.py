@@ -12,17 +12,6 @@ def get(url):
     request = requests.get("https://api.octane.gg/api{}".format(url))
     return json.loads(request.content)
 
-def getMatchUrls():
-    f = open("match_urls.txt", "a")
-
-    for i in range(1, 268):
-        events = get("/matches/?sort=&page={}&per_page=50".format(i))
-
-        for match in events['data']:
-            f.write(match['match_url'] + "\n")
-
-    f.close()
-
 def getSeriesInfo(match_url):
 
     series = get("/series/{}".format(match_url))
@@ -35,43 +24,53 @@ def getSeriesInfo(match_url):
         "winner": winnerOfSeries
     }
 
-def getGameResults(match_url):
-    game_results = []
-    series_info = getSeriesInfo(match_url)
+
+def getData(match):
+    match_url = match['match_url']
+    seriesInfo = getSeriesInfo(match_url)
+    best_of = seriesInfo["best_of"]
+    did_blue_win = seriesInfo["winner"]
+
     blueWins = 0
     orangeWins = 0
-    goalsDiff = 0
-    
-    for i in range(1, series_info['best_of']):
+    blueGoals = 0
+    orangeGoals = 0
+    game_results = []
+
+    for i in range(1, best_of):
         try: # not all series go to the max game so we need to stop once we reach the end of the series
             match_data = get("/match_scoreboard_info/{}/{}".format(match_url, i))['data']
         except:
             return game_results[:len(game_results) - 1] # we don't care about the last game as it isn't helping us predict
 
-        goalsDiff += (match_data['Team1Goals'] - match_data['Team2Goals'])
+        blueGoals += match_data['Team1Goals']
+        orangeGoals += match_data['Team2Goals']
 
         if (match_data['Result'] == match_data["Team1"]):
             blueWins += 1
         else:
             orangeWins += 1
 
-        game_results.append([goalsDiff, (blueWins - orangeWins) / series_info['best_of'], series_info['winner']])
+        game_results.append([match_url, blueGoals, orangeGoals, blueWins, orangeWins, best_of, did_blue_win])
 
     return game_results
 
 
+
 def main():
     all_results = []
-    f = open("match_urls.txt", "r")
-    for url in tqdm(f):
-        game_results = getGameResults(str(url).rstrip()) # make sure we strip off the endline character
-        for game in game_results:
-            all_results.append(game)
 
-    f.close()
-    df = pd.DataFrame(all_results, columns = ["goal_diff", "win_diff", "won_series"])
-    df.to_csv("data.csv", index=False)
+    for i in tqdm(range(1, 200)):
+        events = get("/matches/?sort=&page={}&per_page=50".format(i))
 
+        for match in events['data']:
+            series = getData(match)
+            for game in series:
+                all_results.append(game)
+
+
+    df = pd.DataFrame(all_results, columns = ["match_url", "blue_goals", "orange_goals", "blue_wins", "orange_wins", "best_of", "did_blue_win"])
+    df.to_csv("rawData.csv", index=False)
 
 if __name__ == "__main__":
     main()
