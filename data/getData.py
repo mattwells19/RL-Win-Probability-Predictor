@@ -24,6 +24,10 @@ def getSeriesInfo(match_url):
         "winner": winnerOfSeries
     }
 
+def getHead2Head(series_url):
+    match_data = get("/head_to_head/{}".format(series_url))['data']
+    # match data returns an array of matches
+
 
 def getData(match):
     match_url = match['match_url']
