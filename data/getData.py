@@ -24,9 +24,23 @@ def getSeriesInfo(match_url):
         "winner": winnerOfSeries
     }
 
-def getHead2Head(series_url):
-    match_data = get("/head_to_head/{}".format(series_url))['data']
-    # match data returns an array of matches
+def getHead2Head(match_url):
+    try:
+        matchData = get("/match/{}".format(match_url))['data']
+        blueTeam = matchData["Team1"]
+        blueWins = 0
+        orangeWins = 0
+        head2headmatches = get("/head_to_head/{}".format(match_url))['data']
+        for match in head2headmatches:
+            if (match["Team1"] == blueTeam):
+                blueWins += match["Team1Games"]
+                orangeWins += match["Team2Games"]
+            else:
+                blueWins += match["Team2Games"]
+                orangeWins += match["Team1Games"]
+        return (blueWins - orangeWins) / (blueWins + orangeWins)
+    except:
+        return 0
 
 
 def getData(match):
@@ -34,6 +48,7 @@ def getData(match):
     seriesInfo = getSeriesInfo(match_url)
     best_of = seriesInfo["best_of"]
     did_blue_win = seriesInfo["winner"]
+    head2head = getHead2Head(match_url)
 
     blueWins = 0
     orangeWins = 0
@@ -55,7 +70,7 @@ def getData(match):
         else:
             orangeWins += 1
 
-        game_results.append([match_url, blueGoals, orangeGoals, blueWins, orangeWins, best_of, did_blue_win])
+        game_results.append([match_url, blueGoals, orangeGoals, blueWins, orangeWins, best_of, did_blue_win, head2head])
 
     return game_results
 
@@ -65,15 +80,14 @@ def main():
     all_results = []
 
     for i in tqdm(range(1, 200)):
-        events = get("/matches/?sort=&page={}&per_page=50".format(i))
+        events = get("/matches/?sort=&page={}&per_page=10".format(i))
 
         for match in events['data']:
             series = getData(match)
             for game in series:
                 all_results.append(game)
 
-
-    df = pd.DataFrame(all_results, columns = ["match_url", "blue_goals", "orange_goals", "blue_wins", "orange_wins", "best_of", "did_blue_win"])
+    df = pd.DataFrame(all_results, columns = ["match_url", "blue_goals", "orange_goals", "blue_wins", "orange_wins", "best_of", "did_blue_win", "head2head"])
     df.to_csv("rawData.csv", index=False)
 
 if __name__ == "__main__":
